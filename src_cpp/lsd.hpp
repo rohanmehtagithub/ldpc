@@ -1,6 +1,7 @@
 #ifndef UF2_H
 #define UF2_H
 
+#include <cstdio>
 #include <iostream>
 #include <memory>
 #include <random>
@@ -285,6 +286,7 @@ namespace ldpc::lsd {
             for (auto j: smaller->enclosed_syndromes) {
                 larger->enclosed_syndromes.insert(j);
             }
+            printf("[LSD DEBUG] Merging cluster %d into %d. Deactivating cluster %d.\n", smaller->cluster_id, larger->cluster_id, smaller->cluster_id);
             smaller->active = false; // smaller, absorbed cluster is deactivated
             smaller->absorbed_into_cluster = larger->cluster_id;
             smaller->got_inactive_in_timestep = smaller->curr_timestep;
@@ -754,11 +756,17 @@ namespace ldpc::lsd {
             if (lsd_order == 0) {
                 this->statistics.lsd_order = 0;
                 this->statistics.lsd_method = osd::OSD_0;
+                printf("[LSD DEBUG] --- Entering final OSD-0 solving loop ---\n"); // ADD THIS
                 for (auto cl: clusters) {
+                    printf("[LSD DEBUG] Checking cluster %d. Active status: %s. Bit count: %zu\n", 
+                        cl->cluster_id, 
+                        cl->active ? "true" : "false", 
+                        cl->bit_nodes.size());
                     if (do_stats) {
                         this->update_final_stats(cl);
                     }
                     if (cl->active) {
+                        printf("[LSD DEBUG] Cluster %d is ACTIVE. Calculating solution.\n", cl->cluster_id);
                         auto solution = cl->pluDecomposition.lu_solve(cl->cluster_pcm_syndrome);
                         this->statistics.individual_cluster_stats[cl->cluster_id].solution = solution;
                         for (auto i = 0; i < solution.size(); i++) {
