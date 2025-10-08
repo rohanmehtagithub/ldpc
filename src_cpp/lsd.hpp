@@ -653,40 +653,6 @@ namespace ldpc::lsd {
             std::cout << this->statistics.toString() << std::endl;
         }
 
-        void update_growth_stats(const LsdCluster *cl) {
-            auto &cluster_stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
-        
-            // Capture the state transition
-            bool was_active = cluster_stat.active;
-            bool is_now_active = cl->active;
-        
-            // If it just transitioned from active to inactive, finalize its stats now
-            if (was_active && !is_now_active) {
-                update_final_stats(cl);
-            }
-        
-            // Update timestep-based stats
-            cluster_stat.active = is_now_active;
-            cluster_stat.undergone_growth_steps++;
-            cluster_stat.size_history.push_back(cl->bit_nodes.size());
-            cluster_stat.absorbed_by_cluster = cl->absorbed_into_cluster;
-            cluster_stat.got_inactive_in_timestep = cl->got_inactive_in_timestep;
-        }
-
-        void update_final_stats(const LsdCluster *cl) {
-            this->statistics.individual_cluster_stats[cl->cluster_id].final_bit_count = cl->bit_nodes.size();
-            this->statistics.individual_cluster_stats[cl->cluster_id].nr_merges = cl->nr_merges;
-            int nr_nonzero_elems = gf2dense::count_non_zero_matrix_entries(cl->cluster_pcm);
-            this->statistics.individual_cluster_stats[cl->cluster_id].nr_of_non_zero_check_matrix_entries =
-                    nr_nonzero_elems;
-            auto size = cl->pluDecomposition.col_count * cl->pluDecomposition.row_count;
-            if (size > 0) {
-                this->statistics.individual_cluster_stats[cl->cluster_id].cluster_pcm_sparsity =
-                        1.0 - ((static_cast<double>(nr_nonzero_elems)) / static_cast<double>(size));
-            }
-            this->statistics.individual_cluster_stats[cl->cluster_id].bit_indices = cl->cluster_bit_idx_to_pcm_bit_idx;
-        }
-
         std::vector<uint8_t> &on_the_fly_decode(std::vector<uint8_t> &syndrome,
                                                 const std::vector<double> &bit_weights = NULL_DOUBLE_VECTOR) {
             return this->lsd_decode(syndrome, bit_weights, 1, true);
@@ -697,53 +663,48 @@ namespace ldpc::lsd {
                    const std::vector<double> &bit_weights = NULL_DOUBLE_VECTOR,
                    const int bits_per_step = 1,
                    const bool is_on_the_fly = true) {
-            auto start_time = std::chrono::high_resolution_clock::now();
-            this->statistics.clear();
-            this->statistics.syndrome = syndrome;
-
-            fill(this->decoding.begin(), this->decoding.end(), 0);
-
-            std::vector<LsdCluster *> clusters;
-            std::vector<LsdCluster *> invalid_clusters;
-            auto global_bit_membership = std::make_shared<std::vector<LsdCluster *>>(
-                    std::vector<LsdCluster *>(this->pcm.n));
-            auto global_check_membership = std::make_shared<std::vector<LsdCluster *>>(
-                    std::vector<LsdCluster *>(this->pcm.m));
-            // timestep to added bits history for stats
-            auto *global_timestep_bits_history = new std::unordered_map<int, std::unordered_map<int, std::vector<int>>>{};
-            auto timestep = 0;
-            for (auto i = 0; i < this->pcm.m; i++) {
-                if (syndrome[i] == 1) {
-                    auto *cl = new LsdCluster(this->pcm, i, global_check_membership, global_bit_membership);
-                    clusters.push_back(cl);
-                    invalid_clusters.push_back(cl);
-                    if (this->do_stats) {
-                        this->statistics.individual_cluster_stats[cl->cluster_id] = ClusterStatistics();
-                        cl->global_timestep_bit_history = global_timestep_bits_history;
+                for (auto i = 0; i < this->pcm.m; i++) {
+                    if (syndrome[i] == 1) {
+                        auto *cl = new LsdCluster(this->pcm, i, global_check_membership, global_bit_membership);
+                        clusters.push_back(cl);
+                        invalid_clusters.push_back(cl);
+                        if (this->do_stats) {
+                            this->statistics.individual_cluster_stats[cl->cluster_id] = ClusterStatistics();
+                            // ADD THIS LINE TO FIX INITIAL STATE ⬇️
+                            this->statistics.individual_cluster_stats.at(cl->cluster_id).active = true;
+                        }
                     }
                 }
-            }
-
-            while (!invalid_clusters.empty()) {
-                std::vector<int> new_bits;
-                for (auto cl: invalid_clusters) {
-                    if (cl->active) {
-                        cl->curr_timestep = timestep; // for stats
-                        cl->grow_cluster(bit_weights, bits_per_step, is_on_the_fly);
+            
+                while (!invalid_clusters.empty()) {
+                    std::vector<int> new_bits;
+                    for (auto cl: invalid_clusters) {
+                        if (cl->active) {
+                            cl->curr_timestep = timestep; // for stats
+                            cl->grow_cluster(bit_weights, bits_per_step, is_on_the_fly);
+                        }
                     }
-                }
-                invalid_clusters.clear();
-                for (auto cl: clusters) {
-                    if (this->do_stats) {
-                        this->update_growth_stats(cl);
-                    }
+                    invalid_clusters.clear();
+                    for (auto cl: clusters) {
+                        // REPLACE THE OLD `update_growth_stats` CALL WITH THIS BLOCK ⬇️
+                        if (this->do_stats) {
+                            auto &stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
+                            if (stat.active && !cl->active) { // Cluster just became inactive
+                                // Finalize its stats now
+                                stat.final_bit_count = cl->bit_nodes.size();
+                                stat.nr_merges = cl->nr_merges;
+                                stat.bit_indices = cl->cluster_bit_idx_to_pcm_bit_idx;
+                            }
+                            stat.active = cl->active;
+                            stat.undergone_growth_steps++;
+                            stat.size_history.push_back(cl->bit_nodes.size());
+                            stat.absorbed_by_cluster = cl->absorbed_into_cluster;
+                            stat.got_inactive_in_timestep = cl->got_inactive_in_timestep;
+                        }
                     if (cl->active && !cl->valid) {
                         invalid_clusters.push_back(cl);
                     } else if (cl->active && cl->valid && this->do_stats) {
                         this->statistics.individual_cluster_stats[cl->cluster_id].got_valid_in_timestep = timestep;
-                    }
-                    if (do_stats) {
-                        this->statistics.individual_cluster_stats[cl->cluster_id].active = cl->active;
                     }
                 }
                 std::sort(invalid_clusters.begin(), invalid_clusters.end(),
@@ -762,11 +723,14 @@ namespace ldpc::lsd {
                         cl->cluster_id, 
                         cl->active ? "true" : "false", 
                         cl->bit_nodes.size());
-                    if (do_stats) {
-                        this->update_final_stats(cl);
-                    }
                     if (cl->active) {
                         printf("[LSD DEBUG] Cluster %d is ACTIVE. Calculating solution.\n", cl->cluster_id);
+                        if (do_stats) {
+                            auto &stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
+                            stat.final_bit_count = cl->bit_nodes.size();
+                            stat.nr_merges = cl->nr_merges;
+                            stat.bit_indices = cl->cluster_bit_idx_to_pcm_bit_idx;
+                        }
                         auto solution = cl->pluDecomposition.lu_solve(cl->cluster_pcm_syndrome);
                         this->statistics.individual_cluster_stats[cl->cluster_id].solution = solution;
                         for (auto i = 0; i < solution.size(); i++) {
