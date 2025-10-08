@@ -563,6 +563,16 @@ namespace ldpc::lsd {
                     }
                 }
                 result += "],";
+                result += "\"bit_indices\":[";
+                if (!kv.second.bit_indices.empty()) {
+                    for (size_t i = 0; i < kv.second.bit_indices.size(); ++i) {
+                        result += std::to_string(kv.second.bit_indices[i]);
+                        if (i < kv.second.bit_indices.size() - 1) {
+                            result += ",";
+                        }
+                    }
+                }
+                result += "],";
                 result += "\"size_history\":[";
                 for (auto &s: kv.second.size_history) {
                     result += std::to_string(s) + ",";
