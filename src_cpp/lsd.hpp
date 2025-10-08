@@ -654,7 +654,17 @@ namespace ldpc::lsd {
         void update_growth_stats(const LsdCluster *cl) {
             this->statistics.individual_cluster_stats[cl->cluster_id].undergone_growth_steps++;
             this->statistics.individual_cluster_stats[cl->cluster_id].size_history.push_back(cl->bit_nodes.size());
-            this->statistics.individual_cluster_stats[cl->cluster_id].active = true;
+            
+            // Check if the cluster became inactive in this timestep
+            bool was_active = this->statistics.individual_cluster_stats[cl->cluster_id].active;
+            bool is_active = cl->active;
+            this->statistics.individual_cluster_stats[cl->cluster_id].active = is_active;
+            
+            // If it just transitioned from active to inactive, save its final state
+            if (was_active && !is_active) {
+                update_final_stats(cl);
+            }
+            
             this->statistics.individual_cluster_stats[cl->cluster_id].absorbed_by_cluster = cl->absorbed_into_cluster;
             this->statistics.individual_cluster_stats[cl->cluster_id].got_inactive_in_timestep = cl->got_inactive_in_timestep;
         }
