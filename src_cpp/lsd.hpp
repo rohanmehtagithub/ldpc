@@ -474,7 +474,7 @@ namespace ldpc::lsd {
         int nr_of_non_zero_check_matrix_entries = 0; // nr of non zero entries in the cluster pcm
         double cluster_pcm_sparsity = 0; // nr of non zero entries in the cluster pcm
         std::vector<uint8_t> solution{}; // local recovery, solution of cluster
-        std::vector<int> bit_indices{}
+        std::vector<int> bit_indices{};
     };
 
     struct Statistics {
