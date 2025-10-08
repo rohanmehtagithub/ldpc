@@ -654,37 +654,34 @@ namespace ldpc::lsd {
         }
 
         void update_growth_stats(const LsdCluster *cl) {
-            auto &cluster_stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
+            auto& stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
         
-            // Capture the state transition
-            bool was_active = cluster_stat.active;
-            bool is_now_active = cl->active;
-        
-            // If it just transitioned from active to inactive, finalize its stats now
-            if (was_active && !is_now_active) {
+            // If the cluster just became inactive, finalize its stats
+            if (stat.active && !cl->active) {
                 update_final_stats(cl);
             }
-        
-            // Update timestep-based stats
-            cluster_stat.active = is_now_active;
-            cluster_stat.undergone_growth_steps++;
-            cluster_stat.size_history.push_back(cl->bit_nodes.size());
-            cluster_stat.absorbed_by_cluster = cl->absorbed_into_cluster;
-            cluster_stat.got_inactive_in_timestep = cl->got_inactive_in_timestep;
+            
+            // Update the stats for the current timestep
+            stat.active = cl->active;
+            stat.undergone_growth_steps++;
+            stat.size_history.push_back(cl->bit_nodes.size());
+            stat.absorbed_by_cluster = cl->absorbed_into_cluster;
+            stat.got_inactive_in_timestep = cl->got_inactive_in_timestep;
         }
 
         void update_final_stats(const LsdCluster *cl) {
-            this->statistics.individual_cluster_stats[cl->cluster_id].final_bit_count = cl->bit_nodes.size();
-            this->statistics.individual_cluster_stats[cl->cluster_id].nr_merges = cl->nr_merges;
+            auto& stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
+            stat.final_bit_count = cl->bit_nodes.size();
+            stat.nr_merges = cl->nr_merges;
+            stat.bit_indices = cl->cluster_bit_idx_to_pcm_bit_idx; // This is the key line
+        
             int nr_nonzero_elems = gf2dense::count_non_zero_matrix_entries(cl->cluster_pcm);
-            this->statistics.individual_cluster_stats[cl->cluster_id].nr_of_non_zero_check_matrix_entries =
-                    nr_nonzero_elems;
+            stat.nr_of_non_zero_check_matrix_entries = nr_nonzero_elems;
             auto size = cl->pluDecomposition.col_count * cl->pluDecomposition.row_count;
             if (size > 0) {
-                this->statistics.individual_cluster_stats[cl->cluster_id].cluster_pcm_sparsity =
+                stat.cluster_pcm_sparsity =
                         1.0 - ((static_cast<double>(nr_nonzero_elems)) / static_cast<double>(size));
             }
-            this->statistics.individual_cluster_stats[cl->cluster_id].bit_indices = cl->cluster_bit_idx_to_pcm_bit_idx;
         }
 
         std::vector<uint8_t> &on_the_fly_decode(std::vector<uint8_t> &syndrome,
