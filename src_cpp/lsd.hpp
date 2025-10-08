@@ -474,6 +474,7 @@ namespace ldpc::lsd {
         int nr_of_non_zero_check_matrix_entries = 0; // nr of non zero entries in the cluster pcm
         double cluster_pcm_sparsity = 0; // nr of non zero entries in the cluster pcm
         std::vector<uint8_t> solution{}; // local recovery, solution of cluster
+        std::vector<int> bit_indices{}
     };
 
     struct Statistics {
@@ -659,6 +660,7 @@ namespace ldpc::lsd {
                 this->statistics.individual_cluster_stats[cl->cluster_id].cluster_pcm_sparsity =
                         1.0 - ((static_cast<double>(nr_nonzero_elems)) / static_cast<double>(size));
             }
+            this->statistics.individual_cluster_stats[cl->cluster_id].bit_indices = cl->cluster_bit_idx_to_pcm_bit_idx;
         }
 
         std::vector<uint8_t> &on_the_fly_decode(std::vector<uint8_t> &syndrome,
