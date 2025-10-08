@@ -20,6 +20,7 @@ cdef extern from "lsd.hpp" namespace "ldpc::lsd":
         int nr_merges
         bool active
         vector[int] size_history
+        vector[int] bit_indices
         int got_valid_in_timestep
         int got_inactive_in_timestep
         int absorbed_by_cluster
