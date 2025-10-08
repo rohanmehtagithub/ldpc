@@ -467,7 +467,7 @@ namespace ldpc::lsd {
         int undergone_growth_steps = 0; // nr of growth steps the cluster underwent
         int nr_merges = 0; // nr of merges the cluster underwent
         std::vector<int> size_history = {}; // history of cluster sizes from 0 to final bit count
-        bool active = false; // if cluster is active, i.e., not merged into another cluster
+        bool active = true; // if cluster is active, i.e., not merged into another cluster
         int got_valid_in_timestep = -1; // timestep in which cluster got valid
         int got_inactive_in_timestep = -1; // timestep in which cluster got inactive, i.e., was absorbed by another
         int absorbed_by_cluster = -1; // cluster_id of the cluster the current one was merged into
@@ -652,21 +652,23 @@ namespace ldpc::lsd {
         }
 
         void update_growth_stats(const LsdCluster *cl) {
-            this->statistics.individual_cluster_stats[cl->cluster_id].undergone_growth_steps++;
-            this->statistics.individual_cluster_stats[cl->cluster_id].size_history.push_back(cl->bit_nodes.size());
-            
-            // Check if the cluster became inactive in this timestep
-            bool was_active = this->statistics.individual_cluster_stats[cl->cluster_id].active;
-            bool is_active = cl->active;
-            this->statistics.individual_cluster_stats[cl->cluster_id].active = is_active;
-            
-            // If it just transitioned from active to inactive, save its final state
-            if (was_active && !is_active) {
+            auto &cluster_stat = this->statistics.individual_cluster_stats.at(cl->cluster_id);
+        
+            // Capture the state transition
+            bool was_active = cluster_stat.active;
+            bool is_now_active = cl->active;
+        
+            // If it just transitioned from active to inactive, finalize its stats now
+            if (was_active && !is_now_active) {
                 update_final_stats(cl);
             }
-            
-            this->statistics.individual_cluster_stats[cl->cluster_id].absorbed_by_cluster = cl->absorbed_into_cluster;
-            this->statistics.individual_cluster_stats[cl->cluster_id].got_inactive_in_timestep = cl->got_inactive_in_timestep;
+        
+            // Update timestep-based stats
+            cluster_stat.active = is_now_active;
+            cluster_stat.undergone_growth_steps++;
+            cluster_stat.size_history.push_back(cl->bit_nodes.size());
+            cluster_stat.absorbed_by_cluster = cl->absorbed_into_cluster;
+            cluster_stat.got_inactive_in_timestep = cl->got_inactive_in_timestep;
         }
 
         void update_final_stats(const LsdCluster *cl) {
