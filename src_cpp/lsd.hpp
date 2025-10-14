@@ -626,7 +626,7 @@ namespace ldpc::lsd {
                                                  lsd_order(lsd_order) {
             this->bit_count = pcm.n;
             this->decoding.resize(this->bit_count);
-            this->do_stats = false;
+            this->do_stats = true;
         }
 
         osd::OsdMethod getLsdMethod() const {
