@@ -672,6 +672,16 @@ namespace ldpc::lsd {
             for (auto bit : cl->bit_nodes) {
                 stats.final_bits.push_back(bit);
             }
+
+            // ================== ADD THIS CODE FOR DEBUGGING ==================
+            std::cout << "DEBUG: update_final_stats called for Cluster ID " << cl->cluster_id
+                      << " at Timestep " << cl->curr_timestep
+                      << ". Bits count: " << stats.final_bits.size() << ". Bits: [ ";
+            for (size_t i = 0; i < stats.final_bits.size(); ++i) {
+                std::cout << stats.final_bits[i] << (i == stats.final_bits.size() - 1 ? "" : ", ");
+            }
+            std::cout << " ]" << std::endl;
+            // =================================================================
         }
 
         std::vector<uint8_t> &on_the_fly_decode(std::vector<uint8_t> &syndrome,
